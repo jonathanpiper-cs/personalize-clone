@@ -33,10 +33,18 @@ export class MigrateCommand implements CliCommand {
 
       if (result.success) {
         logger.section('Migration Summary');
-        logger.success(`Migration completed successfully!
+        const summaryMessage = result.experiencesSkipped > 0 
+          ? `Migration completed successfully!
         - ${result.attributesMigrated} attributes migrated
         - ${result.audiencesMigrated} audiences migrated
-        - ${result.experiencesMigrated} experiences migrated`);
+        - ${result.experiencesMigrated} experiences migrated
+        - ${result.experiencesSkipped} experiences skipped (had ACTIVE versions)`
+          : `Migration completed successfully!
+        - ${result.attributesMigrated} attributes migrated
+        - ${result.audiencesMigrated} audiences migrated
+        - ${result.experiencesMigrated} experiences migrated`;
+        
+        logger.success(summaryMessage);
       } else {
         logger.error('Migration failed', 'MigrateCommand', {
           errors: result.errors

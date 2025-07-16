@@ -137,11 +137,12 @@ export class MigrationService {
   public migrateExperiences = withErrorHandling(async (
     experiencesWithVersions: ExperienceWithVersions[],
     audienceMappings: AudienceMapping[]
-  ): Promise<ExperienceMapping[]> => {
+  ): Promise<{ mappings: ExperienceMapping[], skippedCount: number }> => {
     logger.migration('experience migration', 'start');
     
     const existingExperiences = await this.targetApi.getAllExperiences();
     const mappings: ExperienceMapping[] = [];
+    let skippedCount = 0;
 
     for (const { experience, versions } of experiencesWithVersions) {
       let targetExperience = existingExperiences.find(existing =>
@@ -158,6 +159,27 @@ export class MigrationService {
 
         targetExperience = await this.targetClient.post<PersonalizeExperience>('experiences', payload);
       } else {
+        // Check if the existing experience has any ACTIVE versions
+        const hasActiveVersion = await this.checkForActiveVersions(targetExperience.uid);
+        
+        if (hasActiveVersion) {
+          logger.warn(`Skipping experience '${experience.name}' - already has ACTIVE version in target project`);
+          
+          // Still create mapping for consistency but don't migrate versions
+          const mapping: ExperienceMapping = {
+            sourceUid: experience.uid,
+            targetUid: targetExperience.uid,
+            name: experience.name,
+            description: experience.description,
+            __type: experience.__type,
+            latestVersion: targetExperience.latestVersion
+          };
+          
+          mappings.push(mapping);
+          skippedCount++;
+          continue;
+        }
+        
         logger.info(`Using existing experience: ${experience.name}`);
       }
 
@@ -176,8 +198,12 @@ export class MigrationService {
       await this.migrateExperienceVersions(targetExperience, versions, audienceMappings);
     }
 
-    logger.migration('experience migration', 'success', { count: mappings.length });
-    return mappings;
+    logger.migration('experience migration', 'success', { 
+      count: mappings.length,
+      skipped: skippedCount,
+      migrated: mappings.length - skippedCount
+    });
+    return { mappings, skippedCount };
   }, 'migrateExperiences');
 
   private migrateExperienceVersions = withErrorHandling(async (
@@ -277,25 +303,47 @@ export class MigrationService {
     return JSON.stringify(def1) === JSON.stringify(def2);
   }
 
+  private checkForActiveVersions = withErrorHandling(async (experienceUid: string): Promise<boolean> => {
+    try {
+      const versions = await this.targetApi.getExperienceVersions(experienceUid);
+      const hasActiveVersion = versions.some(version => version.status === 'ACTIVE');
+      
+      if (hasActiveVersion) {
+        logger.debug(`Experience ${experienceUid} has active versions`, 'MigrationService');
+      }
+      
+      return hasActiveVersion;
+    } catch (error) {
+      // If we can't fetch versions, assume it's safe to migrate
+      logger.warn(`Could not check versions for experience ${experienceUid}, proceeding with migration`, 'MigrationService');
+      return false;
+    }
+  }, 'checkForActiveVersions');
+
+
   public async performMigration(): Promise<MigrationResult> {
     try {
       const sourceConfig = await this.fetchSourceConfiguration();
       
       const attributeMappings = await this.migrateAttributes(sourceConfig.attributes);
       const audienceMappings = await this.migrateAudiences(sourceConfig.audiences, attributeMappings);
-      const experienceMappings = await this.migrateExperiences(sourceConfig.experiencesWithVersions, audienceMappings);
+      const { mappings: experienceMappings, skippedCount } = await this.migrateExperiences(sourceConfig.experiencesWithVersions, audienceMappings);
+      
+      const migratedExperiences = experienceMappings.length - skippedCount;
 
       logger.section('Migration Complete');
-      logger.success(`Successfully migrated:
-      - ${attributeMappings.length} attributes
-      - ${audienceMappings.length} audiences
-      - ${experienceMappings.length} experiences`);
+      logger.success(`Successfully processed:
+      - ${attributeMappings.length} attributes migrated
+      - ${audienceMappings.length} audiences migrated
+      - ${migratedExperiences} experiences migrated
+      - ${skippedCount} experiences skipped (had ACTIVE versions)`);
 
       return {
         success: true,
         attributesMigrated: attributeMappings.length,
         audiencesMigrated: audienceMappings.length,
-        experiencesMigrated: experienceMappings.length,
+        experiencesMigrated: migratedExperiences,
+        experiencesSkipped: skippedCount,
         errors: []
       };
     } catch (error) {
@@ -305,6 +353,7 @@ export class MigrationService {
         attributesMigrated: 0,
         audiencesMigrated: 0,
         experiencesMigrated: 0,
+        experiencesSkipped: 0,
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
     }

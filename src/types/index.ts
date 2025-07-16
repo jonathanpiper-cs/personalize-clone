@@ -107,5 +107,6 @@ export interface MigrationResult {
   attributesMigrated: number;
   audiencesMigrated: number;
   experiencesMigrated: number;
+  experiencesSkipped: number;
   errors: string[];
 }
