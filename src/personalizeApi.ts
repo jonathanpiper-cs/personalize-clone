@@ -1,0 +1,776 @@
+import axios, { AxiosResponse } from 'axios';
+
+// Interface definitions for Personalize API responses
+export interface PersonalizeAttribute {
+	uid: string;
+	name: string;
+	key: string;
+	description?: string;
+	__type: string;
+	// Add other attribute properties as needed
+}
+
+export interface PersonalizeAudience {
+	uid: string;
+	name: string;
+	description?: string;
+	definition: any;
+	// Add other audience properties as needed
+}
+
+export interface PersonalizeExperience {
+	uid: string;
+	name: string;
+	description?: string;
+	__type: 'SEGMENTED' | 'AB_TEST';
+	latestVersion?: any;
+	// Add other experience properties as needed
+}
+
+export interface PersonalizeExperienceVersion {
+	uid: string;
+	status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | 'PAUSED';
+	createdAt: string;
+	updatedAt: string;
+	variants: any[];
+	targeting?: any;
+	metrics?: any[];
+	variantSplit?: string;
+	// Add other version properties as needed
+}
+
+export interface PersonalizeApiResponse<T> {
+	data: T[];
+	// Add other response properties as needed
+}
+
+export interface ExperienceWithVersions {
+	experience: PersonalizeExperience;
+	versions: PersonalizeExperienceVersion[];
+}
+
+export interface AttributeMapping {
+	sourceUid: string;
+	targetUid: string;
+	name: string;
+	__type: string;
+}
+
+export interface AudienceMapping {
+	sourceUid: string;
+	targetUid: string;
+	name: string;
+	description?: string;
+}
+
+export interface ExperienceMapping {
+	sourceUid: string;
+	targetUid: string;
+	name: string;
+	description?: string;
+	__type: 'SEGMENTED' | 'AB_TEST';
+	latestVersion?: any;
+}
+
+export interface CreateAttributeResponse {
+	data: PersonalizeAttribute;
+	// Add other response properties as needed
+}
+
+export interface CreateAudienceResponse {
+	data: PersonalizeAudience;
+	// Add other response properties as needed
+}
+
+export interface CreateExperienceResponse {
+	data: PersonalizeExperience;
+	// Add other response properties as needed
+}
+
+// Function to get the Personalize API base URL
+function getPersonalizeApiUrl(): string {
+	// Default to US region, can be overridden via environment variable
+	return process.env.PERSONALIZE_API_URL || 'https://personalize-api.contentstack.com';
+}
+
+// Function to get all attributes from a Personalize project
+export async function getAllAttributes(projectUid: string, authToken: string): Promise<PersonalizeAttribute[]> {
+	const apiUrl = getPersonalizeApiUrl();
+	const url = `${apiUrl}/attributes`;
+
+	try {
+		console.log('Fetching all attributes...');
+
+		const response = await axios.get<PersonalizeAttribute[]>(url, {
+			headers: {
+				'authtoken': authToken,
+				'Content-Type': 'application/json',
+				'x-project-uid': projectUid
+			}
+		});
+
+		console.log(`Successfully fetched ${response.data.length} attributes`);
+		return response.data;
+	} catch (error: any) {
+		console.error('Failed to fetch attributes:');
+
+		if (error.response) {
+			console.error(`Status: ${error.response.status}`);
+			console.error(`Status Text: ${error.response.statusText}`);
+			console.error(`Response Data:`, error.response.data);
+		} else {
+			console.error('Error:', error.message);
+		}
+
+		throw new Error('Failed to fetch attributes from Personalize API');
+	}
+}
+
+// Function to get all audiences from a Personalize project
+export async function getAllAudiences(projectUid: string, authToken: string): Promise<PersonalizeAudience[]> {
+	const apiUrl = getPersonalizeApiUrl();
+	const url = `${apiUrl}/audiences`;
+
+	try {
+		console.log('Fetching all audiences...');
+
+		const response = await axios.get<PersonalizeAudience[]>(url, {
+			headers: {
+				'authtoken': authToken,
+				'Content-Type': 'application/json',
+				'x-project-uid': projectUid
+			}
+		});
+
+		console.log(`Successfully fetched ${response.data.length} audiences`);
+		return response.data;
+	} catch (error: any) {
+		console.error('Failed to fetch audiences:');
+
+		if (error.response) {
+			console.error(`Status: ${error.response.status}`);
+			console.error(`Status Text: ${error.response.statusText}`);
+			console.error(`Response Data:`, error.response.data);
+		} else {
+			console.error('Error:', error.message);
+		}
+
+		throw new Error('Failed to fetch audiences from Personalize API');
+	}
+}
+
+// Function to get all experiences from a Personalize project
+export async function getAllExperiences(projectUid: string, authToken: string): Promise<PersonalizeExperience[]> {
+	const apiUrl = getPersonalizeApiUrl();
+	const url = `${apiUrl}/experiences`;
+
+	try {
+		console.log('Fetching all experiences...');
+
+		const response = await axios.get<PersonalizeExperience[]>(url, {
+			headers: {
+				'authtoken': authToken,
+				'Content-Type': 'application/json',
+				'x-project-uid': projectUid
+			}
+		});
+
+		console.log(`Successfully fetched ${response.data.length} experiences`);
+		return response.data;
+	} catch (error: any) {
+		console.error('Failed to fetch experiences:');
+
+		if (error.response) {
+			console.error(`Status: ${error.response.status}`);
+			console.error(`Status Text: ${error.response.statusText}`);
+			console.error(`Response Data:`, error.response.data);
+		} else {
+			console.error('Error:', error.message);
+		}
+
+		throw new Error('Failed to fetch experiences from Personalize API');
+	}
+}
+
+// Function to get the newest version of a specific experience
+export async function getExperienceVersions(projectUid: string, experienceUid: string, authToken: string): Promise<PersonalizeExperienceVersion | null> {
+	const apiUrl = getPersonalizeApiUrl();
+	const url = `${apiUrl}/experiences/${experienceUid}/versions`;
+
+	try {
+		console.log(`Fetching versions for experience: ${experienceUid}`);
+
+		const response = await axios.get<PersonalizeExperienceVersion[]>(url, {
+			headers: {
+				'authtoken': authToken,
+				'Content-Type': 'application/json',
+				'x-project-uid': projectUid
+			}
+		});
+
+		console.log(`Successfully fetched ${response.data.length} versions for experience ${experienceUid}`);
+
+		// Return the newest version based on updatedAt timestamp
+		if (response.data.length === 0) {
+			console.log(`No versions found for experience ${experienceUid}`);
+			return null;
+		}
+
+		const newestVersion = response.data.reduce((newest, current) => {
+			return new Date(current.updatedAt) > new Date(newest.updatedAt) ? current : newest;
+		});
+
+		console.log(`Returning newest version (${newestVersion.uid}) for experience ${experienceUid}`);
+		return newestVersion;
+	} catch (error: any) {
+		console.error(`Failed to fetch versions for experience ${experienceUid}:`);
+
+		if (error.response) {
+			console.error(`Status: ${error.response.status}`);
+			console.error(`Status Text: ${error.response.statusText}`);
+			console.error(`Response Data:`, error.response.data);
+		} else {
+			console.error('Error:', error.message);
+		}
+
+		throw new Error(`Failed to fetch versions for experience ${experienceUid} from Personalize API`);
+	}
+}
+
+// Function to get all experiences with their versions
+export async function getAllExperiencesWithVersions(projectUid: string, authToken: string): Promise<ExperienceWithVersions[]> {
+	try {
+		console.log('Fetching all experiences with their versions...');
+
+		// First, get all experiences
+		const experiences = await getAllExperiences(projectUid, authToken);
+
+		// Then, fetch versions for each experience
+		const experiencesWithVersions: ExperienceWithVersions[] = [];
+
+		for (const experience of experiences) {
+			try {
+				const newestVersion = await getExperienceVersions(projectUid, experience.uid, authToken);
+				experiencesWithVersions.push({
+					experience,
+					versions: newestVersion ? [newestVersion] : [] // Convert single version to array or empty array
+				});
+			} catch (error) {
+				console.warn(`Failed to fetch versions for experience ${experience.name} (${experience.uid}), skipping...`);
+				// Continue with other experiences even if one fails
+				experiencesWithVersions.push({
+					experience,
+					versions: [] // Empty versions array for failed fetches
+				});
+			}
+		}
+
+		const totalVersions = experiencesWithVersions.reduce((sum, exp) => sum + exp.versions.length, 0);
+		console.log(`\nSuccessfully fetched ${experiencesWithVersions.length} experiences with a total of ${totalVersions} versions`);
+
+		return experiencesWithVersions;
+	} catch (error) {
+		console.error('Failed to fetch experiences with versions:', error);
+		throw error;
+	}
+}
+
+// Function to create attributes in the target project
+export async function createAttributesInTarget(
+	projectUid: string,
+	authToken: string,
+	attributes: PersonalizeAttribute[]
+): Promise<AttributeMapping[]> {
+	const apiUrl = getPersonalizeApiUrl();
+	const url = `${apiUrl}/attributes`;
+
+	const attributeMappings: AttributeMapping[] = [];
+
+	console.log(`\nCreating ${attributes.length} attributes in target project...`);
+
+// First, fetch all existing attributes from the target project
+	const existingAttributes = await getAllAttributes(projectUid, authToken);
+
+	for (const attribute of attributes) {
+		// Check if the attribute already exists in the target project
+		const existingAttribute = existingAttributes.find(
+			(existing) =>
+				existing.name === attribute.name &&
+				existing.__type === attribute.__type
+		);
+
+		if (existingAttribute) {
+			console.log(`Skipping creation for existing attribute '${attribute.name}' with UID: ${existingAttribute.uid}`);
+			const mapping: AttributeMapping = {
+				sourceUid: attribute.uid,
+				targetUid: existingAttribute.uid,
+				name: attribute.name,
+				__type: attribute.__type
+			};
+			attributeMappings.push(mapping);
+			continue;
+		}
+
+		try {
+			console.log(`Creating attribute '${attribute.name}' (${attribute.__type})...`);
+
+			// Prepare the payload for creating the attribute
+			const payload = {
+				name: attribute.name,
+				description: attribute.description || '',
+				key: attribute.key || '',
+				// Add other necessary fields based on the attribute structure
+			};
+
+			const response = await axios.post<PersonalizeAttribute>(url, payload, {
+				headers: {
+					'authtoken': authToken,
+					'Content-Type': 'application/json',
+					'x-project-uid': projectUid
+				}
+			});
+
+			if (response.data && response.data.uid) {
+				const mapping: AttributeMapping = {
+					sourceUid: attribute.uid,
+					targetUid: response.data.uid,
+					name: attribute.name,
+					__type: attribute.__type
+				};
+
+				attributeMappings.push(mapping);
+				console.log(`✓ Created attribute '${attribute.name}' with UID: ${response.data.uid}`);
+			} else {
+				console.warn(`⚠ Attribute '${attribute.name}' created but response missing UID`);
+				throw new Error(`Invalid response format for attribute '${attribute.name}'`);
+			}
+		} catch (error: any) {
+			console.error(`✗ Failed to create attribute '${attribute.name}':`);
+
+			if (error.response) {
+				console.error(`Status: ${error.response.status}`);
+				console.error(`Status Text: ${error.response.statusText}`);
+				console.error(`Response Data:`, error.response.data);
+			} else {
+				console.error('Error:', error.message);
+			}
+
+			throw new Error(`Failed to create attribute '${attribute.name}' in target project`);
+		}
+	}
+
+	console.log(`\n✓ Successfully created ${attributeMappings.length} attributes in target project`);
+	return attributeMappings;
+}
+
+// Helper function to recursively update attribute UIDs in audience rules
+function updateAttributeReferencesInRules(obj: any, attributeMappings: AttributeMapping[]): any {
+	if (!obj || typeof obj !== 'object') {
+		return obj;
+	}
+
+	if (Array.isArray(obj)) {
+		return obj.map(item => updateAttributeReferencesInRules(item, attributeMappings));
+	}
+
+	const result = { ...obj };
+
+	// Check if this object has a 'ref' property that needs to be updated
+	if (result.ref && typeof result.ref === 'string') {
+		const mapping = attributeMappings.find(m => m.sourceUid === result.ref);
+		if (mapping) {
+			console.log(` Updating attribute reference: ${result.ref} → ${mapping.targetUid}`);
+			result.ref = mapping.targetUid;
+		} else {
+			console.warn(` ⚠ No mapping found for attribute reference: ${result.ref}`);
+		}
+	}
+
+	// Recursively process all other properties
+	for (const [key, value] of Object.entries(result)) {
+		if (key !== 'ref') {
+			result[key] = updateAttributeReferencesInRules(value, attributeMappings);
+		}
+	}
+
+	return result;
+}
+
+// Helper function to compare audience definitions for equality
+function areAudienceDefinitionsEqual(def1: any, def2: any): boolean {
+	return JSON.stringify(def1) === JSON.stringify(def2);
+}
+
+// Function to create audiences in the target project
+export async function createAudiencesInTarget(
+	projectUid: string,
+	authToken: string,
+	audiences: PersonalizeAudience[],
+	attributeMappings: AttributeMapping[]
+): Promise<AudienceMapping[]> {
+	const apiUrl = getPersonalizeApiUrl();
+	const url = `${apiUrl}/audiences`;
+
+	const audienceMappings: AudienceMapping[] = [];
+
+	console.log(`\nCreating ${audiences.length} audiences in target project...`);
+
+	// First, fetch all existing audiences from the target project
+	const existingAudiences = await getAllAudiences(projectUid, authToken);
+	console.log(`Found ${existingAudiences.length} existing audiences in target project`);
+
+	for (const audience of audiences) {
+		try {
+			console.log(`Processing audience '${audience.name}'...`);
+
+			// Prepare the payload with updated attribute references
+			let updatedDefinition = updateAttributeReferencesInRules(audience.definition, attributeMappings);
+
+			// Check if an audience with the same name and definition already exists
+			const existingAudience = existingAudiences.find(existing => 
+				existing.name === audience.name && 
+				areAudienceDefinitionsEqual(existing.definition, updatedDefinition)
+			);
+
+			if (existingAudience) {
+				console.log(`Skipping creation for existing audience '${audience.name}' with UID: ${existingAudience.uid}`);
+				const mapping: AudienceMapping = {
+					sourceUid: audience.uid,
+					targetUid: existingAudience.uid,
+					name: audience.name,
+					description: audience.description
+				};
+				audienceMappings.push(mapping);
+				continue;
+			}
+
+			console.log(`Creating new audience '${audience.name}'...`);
+
+			// Prepare the payload for creating the audience
+			const payload = {
+				name: audience.name,
+				description: audience.description || '',
+				definition: updatedDefinition,
+				// Add other necessary fields based on the audience structure
+			};
+
+			const response = await axios.post<PersonalizeAudience>(url, payload, {
+				headers: {
+					'authtoken': authToken,
+					'Content-Type': 'application/json',
+					'x-project-uid': projectUid
+				}
+			});
+
+			if (response.data && response.data.uid) {
+				const mapping: AudienceMapping = {
+					sourceUid: audience.uid,
+					targetUid: response.data.uid,
+					name: audience.name,
+					description: audience.description
+				};
+
+				audienceMappings.push(mapping);
+				console.log(`✓ Created audience '${audience.name}' with UID: ${response.data.uid}`);
+			} else {
+				console.warn(`⚠ Audience '${audience.name}' created but response missing UID`);
+				throw new Error(`Invalid response format for audience '${audience.name}'`);
+			}
+		} catch (error: any) {
+			console.error(`✗ Failed to create audience '${audience.name}':`);
+
+			if (error.response) {
+				console.error(`Status: ${error.response.status}`);
+				console.error(`Status Text: ${error.response.statusText}`);
+				console.error(`Response Data:`, error.response.data);
+			} else {
+				console.error('Error:', error.message);
+			}
+
+			throw new Error(`Failed to create audience '${audience.name}' in target project`);
+		}
+	}
+
+	console.log(`\n✓ Successfully processed ${audienceMappings.length} audiences in target project`);
+	return audienceMappings;
+}
+
+// Helper function to update audience references in experience version targeting
+function updateAudienceReferencesInTargeting(targeting: any, audienceMappings: AudienceMapping[]): any {
+	if (!targeting || typeof targeting !== 'object') {
+		return targeting;
+	}
+
+	if (Array.isArray(targeting)) {
+		return targeting.map(item => updateAudienceReferencesInTargeting(item, audienceMappings));
+	}
+
+	const result = { ...targeting };
+
+	// Check if this object has an 'audience' property that needs to be updated
+	if (result.audience && typeof result.audience === 'string') {
+		const mapping = audienceMappings.find(m => m.sourceUid === result.audience);
+		if (mapping) {
+			console.log(` Updating audience reference: ${result.audience} → ${mapping.targetUid}`);
+			result.audience = mapping.targetUid;
+		} else {
+			console.warn(` ⚠ No mapping found for audience reference: ${result.audience}`);
+		}
+	}
+
+	// Check if this object has an 'audiences' array that needs to be updated
+	if (result.audience.audiences && Array.isArray(result.audience.audiences)) {
+		result.audience.audiences = result.audience.audiences.map((audienceUid: string) => {
+			const mapping = audienceMappings.find(m => m.sourceUid === audienceUid);
+			if (mapping) {
+				console.log(` Updating audience reference in audiences array: ${audienceUid} → ${mapping.targetUid}`);
+				return mapping.targetUid;
+			} else {
+				console.warn(` ⚠ No mapping found for audience reference in audiences array: ${audienceUid}`);
+				return audienceUid; // Keep original if no mapping found
+			}
+		});
+	}
+
+	// Recursively process all other properties
+	for (const [key, value] of Object.entries(result)) {
+		if (key !== 'audience' && key !== 'audiences') {
+			result[key] = updateAudienceReferencesInTargeting(value, audienceMappings);
+		}
+	}
+
+	return result;
+}
+
+// Helper function to update audience references in variants
+function updateAudienceReferencesInVariants(variants: any[], audienceMappings: AudienceMapping[]): any[] {
+	if (!variants || !Array.isArray(variants)) {
+		return variants;
+	}
+
+	return variants.map(variant => {
+		const updatedVariant = { ...variant };
+			delete updatedVariant.shortUid;
+
+		// Update audiences array in the variant
+		if (updatedVariant.audiences && Array.isArray(updatedVariant.audiences)) {
+			updatedVariant.audiences = updatedVariant.audiences.map((audienceUid: string) => {
+				const mapping = audienceMappings.find(m => m.sourceUid === audienceUid);
+				if (mapping) {
+					console.log(` Updating audience reference in variant: ${audienceUid} → ${mapping.targetUid}`);
+					return mapping.targetUid;
+				} else {
+					console.warn(` ⚠ No mapping found for audience reference in variant: ${audienceUid}`);
+					return audienceUid; // Keep original if no mapping found
+				}
+			});
+		}
+
+		return updatedVariant;
+	});
+}
+
+// Function to create experiences in the target project
+export async function createExperiencesInTarget(
+	projectUid: string,
+	authToken: string,
+	experiencesWithVersions: ExperienceWithVersions[],
+	audienceMappings: AudienceMapping[]
+): Promise<ExperienceMapping[]> {
+	const apiUrl = getPersonalizeApiUrl();
+	const experienceUrl = `${apiUrl}/experiences`;
+
+	const experienceMappings: ExperienceMapping[] = [];
+
+	console.log(`\nCreating ${experiencesWithVersions.length} experiences in target project...`);
+
+	// First, fetch all existing experiences from the target project
+	const existingExperiences = await getAllExperiences(projectUid, authToken);
+	console.log(`Found ${existingExperiences.length} existing experiences in target project`);
+
+	for (const { experience, versions } of experiencesWithVersions) {
+		try {
+			console.log(`Processing experience '${experience.name}' (${experience.__type})...`);
+
+			// Check if an experience with the same name and type already exists
+			const existingExperience = existingExperiences.find(existing =>
+				existing.name === experience.name &&
+				existing.__type === experience.__type
+			);
+
+			let targetExperience: PersonalizeExperience;
+
+			if (existingExperience) {
+				console.log(`Using existing experience '${experience.name}' with UID: ${existingExperience.uid}`);
+				targetExperience = existingExperience;
+			} else {
+				console.log(`Creating new experience '${experience.name}'...`);
+
+				// Prepare the payload for creating the experience
+				const payload = {
+					name: experience.name,
+					description: experience.description || '',
+					__type: experience.__type,
+					// Add other necessary fields based on the experience structure
+				};
+
+				const response = await axios.post<PersonalizeExperience>(experienceUrl, payload, {
+					headers: {
+						'authtoken': authToken,
+						'Content-Type': 'application/json',
+						'x-project-uid': projectUid
+					}
+				});
+
+				if (response.data && response.data.uid) {
+					targetExperience = response.data;
+					console.log(`✓ Created experience '${experience.name}' with UID: ${targetExperience.uid}`);
+				} else {
+					console.warn(`⚠ Experience '${experience.name}' created but response missing UID`);
+					throw new Error(`Invalid response format for experience '${experience.name}'`);
+				}
+			}
+
+			// Store the experience mapping
+			const mapping: ExperienceMapping = {
+				sourceUid: experience.uid,
+				targetUid: targetExperience.uid,
+				name: experience.name,
+				description: experience.description,
+				__type: experience.__type,
+				latestVersion: targetExperience.latestVersion
+			};
+			experienceMappings.push(mapping);
+
+			// Now process versions for this experience
+			if (versions && versions.length > 0) {
+				console.log(` Processing ${versions.length} versions for experience '${experience.name}'...`);
+
+				for (const version of versions) {
+					try {
+						console.log(` Processing version ${version.uid} (${version.status})...`);
+
+							// Update audience references in targeting
+							let updatedTargeting = version.targeting;
+							if (version.targeting && audienceMappings.length > 0) {
+								updatedTargeting = updateAudienceReferencesInTargeting(version.targeting, audienceMappings);
+							}
+
+							// console.dir(version, { depth: null });
+
+							// Prepare the version payload
+							const versionPayload = {
+								status: 'ACTIVE', // Default to ACTIVE, can be changed based on version status
+								variants: updateAudienceReferencesInVariants(version.variants, audienceMappings),
+								...(experience.__type === 'AB_TEST') && { 
+									targeting: updatedTargeting, 
+									metrics: version.metrics || [],
+									variantSplit: version.variantSplit,
+								},
+								// Add other necessary fields based on the version structure
+							};
+
+	// Update the experience version
+	const versionUrl = `${apiUrl}/experiences/${targetExperience.uid}/versions/${targetExperience.latestVersion || 'latest'}`;
+		// console.dir(versionPayload, { depth: null });
+
+	const versionResponse = await axios.put(versionUrl, versionPayload, {
+		headers: {
+			'authtoken': authToken,
+			'Content-Type': 'application/json',
+			'x-project-uid': projectUid
+		}
+	});
+
+	// console.dir(versionResponse.data, { depth: null });
+
+	console.log(` ✓ Updated version for experience '${experience.name}' (status: ${version.status})`);
+
+	// Update the latestVersion in our mapping if the response contains it
+	if (versionResponse.data && versionResponse.data.uid) {
+		mapping.latestVersion = versionResponse.data.uid;
+	}
+
+	} catch (versionError: any) {
+		console.error(` ✗ Failed to update version ${version.uid} for experience '${experience.name}':`);
+
+		if (versionError.response) {
+			console.error(` Status: ${versionError.response.status}`);
+			console.error(` Status Text: ${versionError.response.statusText}`);
+			console.error(` Response Data:`, versionError.response.data);
+				console.dir(versionError.response.data, { depth: null });
+		} else {
+			console.error('    Error:', versionError.message);
+		}
+
+		// Continue with other versions instead of failing entirely
+		console.warn(` ⚠ Skipping version ${version.uid} and continuing with other versions...`);
+	}
+	}
+	} else {
+		console.log(` No versions to process for experience '${experience.name}'`);
+	}
+
+	} catch (error: any) {
+		console.error(`✗ Failed to process experience '${experience.name}':`);
+
+		if (error.response) {
+			console.error(`Status: ${error.response.status}`);
+			console.error(`Status Text: ${error.response.statusText}`);
+			console.error(`Response Data:`, error.response.data);
+		} else {
+			console.error('Error:', error.message);
+		}
+
+		throw new Error(`Failed to create experience '${experience.name}' in target project`);
+	}
+	}
+
+	console.log(`\n✓ Successfully processed ${experienceMappings.length} experiences in target project`);
+	return experienceMappings;
+}
+
+// Function to fetch all configuration from source project
+export async function fetchSourceConfiguration(sourceProjectUid: string, authToken: string) {
+	console.log(`\nFetching configuration from source project: ${sourceProjectUid}`);
+
+	try {
+		const [attributes, audiences, experiencesWithVersions] = await Promise.all([
+			getAllAttributes(sourceProjectUid, authToken),
+			getAllAudiences(sourceProjectUid, authToken),
+			getAllExperiencesWithVersions(sourceProjectUid, authToken)
+		]);
+
+		const totalVersions = experiencesWithVersions.reduce((sum, exp) => sum + exp.versions.length, 0);
+
+		console.log('\n=== Source Configuration Summary ===');
+		console.log(`Attributes: ${attributes.length}`);
+		console.log(`Audiences: ${audiences.length}`);
+		console.log(`Experiences: ${experiencesWithVersions.length}`);
+		console.log(`Experience Versions: ${totalVersions}`);
+
+		// Show detailed experience version breakdown
+		console.log('\n=== Experience Version Details ===');
+		experiencesWithVersions.forEach(exp => {
+			const activeVersions = exp.versions.filter(v => v.status === 'ACTIVE').length;
+			const draftVersions = exp.versions.filter(v => v.status === 'DRAFT').length;
+			const archivedVersions = exp.versions.filter(v => v.status === 'ARCHIVED').length;
+			const pausedVersions = exp.versions.filter(v => v.status === 'PAUSED').length;
+
+			console.log(`${exp.experience.name} (${exp.experience.__type}): ${exp.versions.length} versions`);
+			if (activeVersions > 0) console.log(` - Active: ${activeVersions}`);
+			if (draftVersions > 0) console.log(` - Draft: ${draftVersions}`);
+			if (archivedVersions > 0) console.log(` - Archived: ${archivedVersions}`);
+			if (pausedVersions > 0) console.log(` - Paused: ${pausedVersions}`);
+		});
+
+		return {
+			attributes,
+			audiences,
+			experiencesWithVersions
+		};
+	} catch (error) {
+		console.error('Failed to fetch source configuration:', error);
+		throw error;
+	}
+}
